@@ -10,6 +10,7 @@ import (
 const (
 	// userSimpleListURL 获取部门成员
 	userSimpleListURL = "https://qyapi.weixin.qq.com/cgi-bin/user/simplelist"
+	userListURL       = "https://qyapi.weixin.qq.com/cgi-bin/user/list"
 	// userCreateURL 创建成员
 	userCreateURL = "https://qyapi.weixin.qq.com/cgi-bin/user/create?access_token=%s"
 	// userUpdateURL 更新成员
@@ -42,7 +43,11 @@ type (
 	// UserSimpleListResponse 获取部门成员响应
 	UserSimpleListResponse struct {
 		util.CommonError
-		UserList []*UserList
+		UserList []*UserList `json:"userList"`
+	}
+	UserListResponse struct {
+		util.CommonError
+		UserList []*UserInfo `json:"userList"`
 	}
 	// UserList 部门成员
 	UserList struct {
@@ -54,7 +59,7 @@ type (
 )
 
 // UserSimpleList 获取部门成员
-// @see https://developer.work.weixin.qq.com/document/path/90200
+// @see https://developer.work.weixin.qq.com/document/path/90201
 func (r *Client) UserSimpleList(departmentID int) ([]*UserList, error) {
 	var (
 		accessToken string
@@ -74,6 +79,31 @@ func (r *Client) UserSimpleList(departmentID int) ([]*UserList, error) {
 		return nil, err
 	}
 	result := &UserSimpleListResponse{}
+	err = util.DecodeWithError(response, result, "UserSimpleList")
+	return result.UserList, err
+}
+
+// UserList 获取部门成员详情
+// @see https://developer.work.weixin.qq.com/document/path/90200
+func (r *Client) UserList(departmentID int) ([]*UserInfo, error) {
+	var (
+		accessToken string
+		err         error
+	)
+	if accessToken, err = r.GetAccessToken(); err != nil {
+		return nil, err
+	}
+	var response []byte
+	if response, err = util.HTTPGet(strings.Join([]string{
+		userListURL,
+		util.Query(map[string]interface{}{
+			"access_token":  accessToken,
+			"department_id": departmentID,
+		}),
+	}, "?")); err != nil {
+		return nil, err
+	}
+	result := &UserListResponse{}
 	err = util.DecodeWithError(response, result, "UserSimpleList")
 	return result.UserList, err
 }
@@ -217,8 +247,12 @@ func (r *Client) UserUpdate(req *UserUpdateRequest) error {
 }
 
 // UserGetResponse 获取部门成员响应
+
 type UserGetResponse struct {
 	util.CommonError
+	UserInfo
+}
+type UserInfo struct {
 	UserID         string   `json:"userid"`            // 成员UserID。对应管理端的帐号，企业内必须唯一。不区分大小写，长度为1~64个字节；第三方应用返回的值为open_userid
 	Name           string   `json:"name"`              // 成员名称；第三方不可获取，调用时返回userid以代替name；代开发自建应用需要管理员授权才返回；对于非第三方创建的成员，第三方通讯录应用也不可获取；未返回name的情况需要通过通讯录展示组件来展示名字
 	Department     []int    `json:"department"`        // 成员所属部门id列表，仅返回该应用有查看权限的部门id；成员授权模式下，固定返回根部门id，即固定为1。对授权了“组织架构信息”权限的第三方应用，返回成员所属的全部部门id
